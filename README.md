@@ -4,13 +4,14 @@ A Python script to download videos or shorts from YouTube channels in the highes
 
 ## Features
 
-- Download all videos or shorts from a YouTube channel
+- Download all videos and/or shorts from a YouTube channel
 - High-quality MP4 format downloads
 - Progress tracking for each video
 - Configurable retry mechanism
 - Geo-restriction bypass
 - Option to limit the number of downloads for testing
 - Support for FFmpeg post-processing
+- Smart duplicate detection when downloading both videos and shorts
 
 ## Prerequisites
 
@@ -59,9 +60,16 @@ Basic usage:
 python youtube_downloader.py [CHANNEL_URL]
 ```
 
+To see all available options and their descriptions:
+```bash
+python youtube_downloader.py --help
+# or
+python youtube_downloader.py -h
+```
+
 Example:
 ```bash
-python youtube_downloader.py https://www.youtube.com/@SomeChannel/shorts
+python youtube_downloader.py https://www.youtube.com/@SomeChannel
 ```
 
 ### Command Line Options
@@ -71,8 +79,15 @@ python youtube_downloader.py https://www.youtube.com/@SomeChannel/shorts
   python youtube_downloader.py [CHANNEL_URL] --output ./my_videos
   ```
 
-- `--type`, `-t`: Content type to download: "shorts" or "videos" (default: "shorts")
+- `--type`, `-t`: Content type to download: "shorts", "videos", or "all" (default: "all")
   ```bash
+  # Download both regular videos and shorts (default)
+  python youtube_downloader.py [CHANNEL_URL]
+  
+  # Download only shorts
+  python youtube_downloader.py [CHANNEL_URL] --type shorts
+  
+  # Download only regular videos
   python youtube_downloader.py [CHANNEL_URL] --type videos
   ```
 
@@ -91,12 +106,17 @@ python youtube_downloader.py https://www.youtube.com/@SomeChannel/shorts
   python youtube_downloader.py [CHANNEL_URL] --limit 5
   ```
 
+- `--help`, `-h`: Display help message and exit
+  ```bash
+  python youtube_downloader.py --help
+  ```
+
 ### Example with Multiple Options
 
 ```bash
-python youtube_downloader.py https://www.youtube.com/@SomeChannel/shorts \
+python youtube_downloader.py https://www.youtube.com/@SomeChannel \
   --output ./my_videos \
-  --type shorts \
+  --type all \
   --retries 5 \
   --limit 10
 ```
@@ -105,9 +125,14 @@ python youtube_downloader.py https://www.youtube.com/@SomeChannel/shorts \
 
 The script provides clear progress information:
 1. Initial setup confirmation (FFmpeg check, options display)
-2. Video count and scanning progress
+2. When downloading all content types:
+   - Scans for regular videos first
+   - Then scans for shorts
+   - Combines results and removes any duplicates
+   - Shows total unique videos found
 3. Download progress for each video including:
    - Download percentage
+   - Current size / Total size in MB
    - Download speed
    - Time taken
    - Completion status

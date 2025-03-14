@@ -101,9 +101,11 @@ def download_videos(channel_url, output_path, content_type='shorts', retries=3, 
             return
             
         if d['status'] == 'downloading':
-            if 'total_bytes' in d:
+            if 'total_bytes' in d and 'downloaded_bytes' in d:
                 percent = int(d['downloaded_bytes'] / d['total_bytes'] * 100)
-                print(f"\rVideo {video_count['current']}: {percent}%", end='', flush=True)
+                downloaded_mb = d['downloaded_bytes'] / (1024 * 1024)
+                total_mb = d['total_bytes'] / (1024 * 1024)
+                print(f"\rVideo {video_count['current'] + 1}: {percent}% ({downloaded_mb:.1f}MB/{total_mb:.1f}MB)", end='', flush=True)
                     
         elif d['status'] == 'finished':
             if video_id not in downloaded_videos:
@@ -111,9 +113,11 @@ def download_videos(channel_url, output_path, content_type='shorts', retries=3, 
                 video_count['current'] += 1
                 speed = d.get('speed', 0)
                 elapsed = d.get('elapsed', 0)
+                total_bytes = d.get('total_bytes', 0)
                 if speed and elapsed:
                     speed_mb = speed / (1024 * 1024)  # Convert to MiB/s
-                    print(f"\rVideo {video_count['current']}: Download completed - {speed_mb:.2f} MiB/s in {elapsed:.1f}s ✓\033[K")
+                    size_mb = total_bytes / (1024 * 1024)  # Convert to MiB
+                    print(f"\rVideo {video_count['current']}: Download completed - {speed_mb:.2f} MiB/s in {elapsed:.1f}s ({size_mb:.1f} MiB) ✓\033[K")
                 else:
                     print(f"\rVideo {video_count['current']}: Download completed ✓\033[K")
     
@@ -160,38 +164,78 @@ def download_videos(channel_url, output_path, content_type='shorts', retries=3, 
         'ignoreerrors': True,
     }
 
-    # Add content type to URL if specified
-    if content_type == 'shorts':
-        channel_url = f"{channel_url}/shorts"
-    elif content_type == 'videos':
-        channel_url = f"{channel_url}/videos"
+    def process_url(url):
+        try:
+            with YoutubeDL(scan_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                if info and 'entries' in info:
+                    return [e for e in info['entries'] if e]
+        except Exception as e:
+            print(f"\nError processing {url}: {str(e)}")
+            return []
+        return []
 
-    print("Getting video count and details...")
-    
-    # Get video information
     try:
-        with YoutubeDL(scan_opts) as ydl:
-            info = ydl.extract_info(channel_url, download=False)
-            if info and 'entries' in info:
-                # Filter out None entries and get valid videos
-                entries = [e for e in info['entries'] if e]
-                total_videos = len(entries)
-                if limit:
-                    total_videos = min(total_videos, limit)
-                    entries = entries[:limit]
-                
-                print(f"Found {total_videos} videos to process")
-                video_count['total'] = total_videos
-                
-                # Now download the videos
-                with YoutubeDL(ydl_opts) as ydl_download:
+        entries = []
+        if content_type == 'all':
+            # Get regular videos
+            print("\nScanning regular videos...")
+            videos_url = f"{channel_url}/videos"
+            video_entries = process_url(videos_url)
+            
+            # Get shorts
+            print("Scanning shorts...")
+            shorts_url = f"{channel_url}/shorts"
+            shorts_entries = process_url(shorts_url)
+            
+            # Combine entries, removing duplicates based on video ID
+            seen_ids = set()
+            for entry in video_entries + shorts_entries:
+                if entry and entry.get('id') not in seen_ids:
+                    entries.append(entry)
+                    seen_ids.add(entry.get('id'))
+        else:
+            # Add content type to URL if specified
+            if content_type == 'shorts':
+                channel_url = f"{channel_url}/shorts"
+            elif content_type == 'videos':
+                channel_url = f"{channel_url}/videos"
+            entries = process_url(channel_url)
+
+        if entries:
+            total_videos = len(entries)
+            if limit:
+                total_videos = min(total_videos, limit)
+                entries = entries[:limit]
+            
+            print(f"\nFound {total_videos} videos to process")
+            video_count['total'] = total_videos
+            
+            # Add instructions for stopping the process
+            print("\nPress Ctrl+C at any time to stop the download process.")
+            print("Downloads completed so far will be saved.\n")
+            
+            # Now download the videos
+            with YoutubeDL(ydl_opts) as ydl_download:
+                try:
                     result = ydl_download.download([entry['url'] for entry in entries])
-                
-                if result == 0:
-                    print("\nAll downloads completed!")
-                else:
-                    print("\nSome downloads may have failed.")
                     
+                    if result == 0:
+                        print("\nAll downloads completed!")
+                    else:
+                        print("\nSome downloads may have failed.")
+                except KeyboardInterrupt:
+                    print("\n\nDownload interrupted by user. Progress saved.")
+                    print(f"Successfully downloaded {video_count['current']} out of {total_videos} videos.")
+                    return
+        else:
+            print("\nNo videos found to download.")
+                    
+    except KeyboardInterrupt:
+        print("\n\nProcess interrupted by user.")
+        if video_count['current'] > 0:
+            print(f"Successfully downloaded {video_count['current']} videos before interruption.")
+        return
     except Exception as e:
         print(f"\nAn error occurred: {str(e)}")
 
@@ -204,8 +248,8 @@ def main():
     parser.add_argument('channel_url', help='YouTube channel URL')
     parser.add_argument('--output', '-o', default='downloads',
                       help='Output directory for downloaded videos')
-    parser.add_argument('--type', '-t', choices=['shorts', 'videos'],
-                      default='shorts', help='Content type to download (shorts or videos)')
+    parser.add_argument('--type', '-t', choices=['shorts', 'videos', 'all'],
+                      default='all', help='Content type to download (shorts, videos, or all)')
     parser.add_argument('--retries', '-r', type=int, default=3,
                       help='Number of retries for failed downloads')
     parser.add_argument('--no-geo-bypass', action='store_false', dest='geo_bypass',
@@ -215,17 +259,21 @@ def main():
 
     args = parser.parse_args()
     
-    print(f"\nStarting download process...")
-    print(f"Content type: {args.type}")
-    print(f"Channel URL: {args.channel_url}")
-    print(f"Output directory: {args.output}")
-    print(f"Retries: {args.retries}")
-    print(f"Geo-bypass: {'enabled' if args.geo_bypass else 'disabled'}")
-    if args.limit:
-        print(f"Video limit: {args.limit}")
-    
-    download_videos(args.channel_url, args.output, args.type, args.retries, args.geo_bypass, args.limit)
-    print("\nDownload process completed!")
+    try:
+        print(f"\nStarting download process...")
+        print(f"Content type: {args.type}")
+        print(f"Channel URL: {args.channel_url}")
+        print(f"Output directory: {args.output}")
+        print(f"Retries: {args.retries}")
+        print(f"Geo-bypass: {'enabled' if args.geo_bypass else 'disabled'}")
+        if args.limit:
+            print(f"Video limit: {args.limit}")
+        
+        download_videos(args.channel_url, args.output, args.type, args.retries, args.geo_bypass, args.limit)
+        print("\nDownload process completed!")
+    except KeyboardInterrupt:
+        print("\n\nProcess interrupted by user. Exiting gracefully...")
+        sys.exit(0)
 
 if __name__ == "__main__":
     main() 
