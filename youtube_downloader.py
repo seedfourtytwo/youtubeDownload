@@ -239,38 +239,92 @@ def download_videos(channel_url, output_path, content_type='shorts', retries=3, 
     except Exception as e:
         print(f"\nAn error occurred: {str(e)}")
 
+def is_video_url(url):
+    """Check if the URL is a single video URL rather than a channel."""
+    return '/watch?' in url or '/shorts/' in url
+
+def download_single_url(url, output_path, retries=3, geo_bypass=True):
+    """Download a single video from its URL."""
+    print(f"\nStarting download of video: {url}")
+    
+    # Configure yt-dlp options
+    ydl_opts = {
+        'format': 'bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080][ext=mp4] / bv*[height<=1080]+ba/b[height<=1080]',
+        'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
+        'merge_output_format': 'mp4',
+        'postprocessors': [{
+            'key': 'FFmpegVideoConvertor',
+            'preferedformat': 'mp4',
+        }],
+        'retries': retries,
+        'fragment_retries': retries,
+        'skip_unavailable_fragments': True,
+        'geo_bypass': geo_bypass,
+        'geo_bypass_country': 'US',
+        'socket_timeout': 30,
+        'nocheckcertificate': True,
+    }
+    
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            print("Downloading video...")
+            result = ydl.download([url])
+            if result == 0:
+                print("\nVideo downloaded successfully!")
+                return True
+            else:
+                print("\nFailed to download video.")
+                return False
+    except Exception as e:
+        print(f"\nError downloading video: {str(e)}")
+        return False
+
 def main():
     if not check_ffmpeg():
         print("\nPlease install FFmpeg before continuing.")
         sys.exit(1)
 
-    parser = argparse.ArgumentParser(description='Download YouTube videos or shorts from a channel.')
-    parser.add_argument('channel_url', help='YouTube channel URL')
+    parser = argparse.ArgumentParser(description='Download YouTube videos from a channel or specific video URL.')
+    parser.add_argument('url', help='YouTube channel URL or video URL')
     parser.add_argument('--output', '-o', default='downloads',
                       help='Output directory for downloaded videos')
     parser.add_argument('--type', '-t', choices=['shorts', 'videos', 'all'],
-                      default='all', help='Content type to download (shorts, videos, or all)')
+                      default='all', help='Content type to download (for channel URLs only)')
     parser.add_argument('--retries', '-r', type=int, default=3,
                       help='Number of retries for failed downloads')
     parser.add_argument('--no-geo-bypass', action='store_false', dest='geo_bypass',
                       help='Disable geo-restriction bypassing')
     parser.add_argument('--limit', '-l', type=int,
-                      help='Limit the number of videos to download (for testing)')
+                      help='Limit the number of videos to download (for channel URLs only)')
 
     args = parser.parse_args()
     
     try:
         print(f"\nStarting download process...")
-        print(f"Content type: {args.type}")
-        print(f"Channel URL: {args.channel_url}")
-        print(f"Output directory: {args.output}")
-        print(f"Retries: {args.retries}")
-        print(f"Geo-bypass: {'enabled' if args.geo_bypass else 'disabled'}")
-        if args.limit:
-            print(f"Video limit: {args.limit}")
+        create_output_dir(args.output)
         
-        download_videos(args.channel_url, args.output, args.type, args.retries, args.geo_bypass, args.limit)
-        print("\nDownload process completed!")
+        # Check if it's a single video URL or channel URL
+        if is_video_url(args.url):
+            print("Single video URL detected")
+            success = download_single_url(args.url, args.output, args.retries, args.geo_bypass)
+            if success:
+                print("\nDownload completed successfully!")
+            else:
+                print("\nDownload failed.")
+                sys.exit(1)
+        else:
+            print("Channel URL detected")
+            print(f"Content type: {args.type}")
+            print(f"Channel URL: {args.url}")
+            print(f"Output directory: {args.output}")
+            print(f"Retries: {args.retries}")
+            print(f"Geo-bypass: {'enabled' if args.geo_bypass else 'disabled'}")
+            if args.limit:
+                print(f"Video limit: {args.limit}")
+            
+            download_videos(args.url, args.output, args.type, args.retries, args.geo_bypass, args.limit)
+            print("\nChannel download process completed!")
+            
     except KeyboardInterrupt:
         print("\n\nProcess interrupted by user. Exiting gracefully...")
         sys.exit(0)

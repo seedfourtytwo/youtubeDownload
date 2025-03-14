@@ -1,15 +1,16 @@
-# YouTube Channel Video Downloader
+# YouTube Video Downloader
 
-A Python script to download videos or shorts from YouTube channels in the highest quality available. The script uses `yt-dlp` for efficient downloading and supports various options for customization.
+A Python script to download videos from YouTube. It supports downloading either all videos from a channel or a single video by URL. The script uses `yt-dlp` for efficient downloading and supports various options for customization.
 
 ## Features
 
 - Download all videos and/or shorts from a YouTube channel
+- Download single videos by URL (including regular videos and shorts)
 - High-quality MP4 format downloads
 - Progress tracking for each video
 - Configurable retry mechanism
 - Geo-restriction bypass
-- Option to limit the number of downloads for testing
+- Option to limit the number of downloads for testing (channel downloads only)
 - Support for FFmpeg post-processing
 - Smart duplicate detection when downloading both videos and shorts
 
@@ -55,9 +56,22 @@ pip install -r requirements.txt
 
 ## Usage
 
-Basic usage:
+The script supports two main modes of operation:
+
+### 1. Download a Single Video
+
+To download a single video, simply provide its URL:
 ```bash
-python youtube_downloader.py [CHANNEL_URL]
+python youtube_downloader.py https://www.youtube.com/watch?v=VIDEO_ID
+# or for shorts
+python youtube_downloader.py https://www.youtube.com/shorts/VIDEO_ID
+```
+
+### 2. Download from a Channel
+
+To download videos from a channel:
+```bash
+python youtube_downloader.py https://www.youtube.com/@ChannelName
 ```
 
 To see all available options and their descriptions:
@@ -67,52 +81,58 @@ python youtube_downloader.py --help
 python youtube_downloader.py -h
 ```
 
-Example:
-```bash
-python youtube_downloader.py https://www.youtube.com/@SomeChannel
-```
-
 ### Command Line Options
+
+- `url`: YouTube video URL or channel URL (required)
+  ```bash
+  # For single video
+  python youtube_downloader.py https://www.youtube.com/watch?v=VIDEO_ID
+  # For channel
+  python youtube_downloader.py https://www.youtube.com/@ChannelName
+  ```
 
 - `--output`, `-o`: Output directory for downloaded videos (default: "downloads")
   ```bash
-  python youtube_downloader.py [CHANNEL_URL] --output ./my_videos
+  python youtube_downloader.py [URL] --output ./my_videos
   ```
 
-- `--type`, `-t`: Content type to download: "shorts", "videos", or "all" (default: "all")
+- `--type`, `-t`: Content type to download from channel: "shorts", "videos", or "all" (default: "all")
   ```bash
-  # Download both regular videos and shorts (default)
+  # Download both regular videos and shorts from channel (default)
   python youtube_downloader.py [CHANNEL_URL]
   
-  # Download only shorts
+  # Download only shorts from channel
   python youtube_downloader.py [CHANNEL_URL] --type shorts
   
-  # Download only regular videos
+  # Download only regular videos from channel
   python youtube_downloader.py [CHANNEL_URL] --type videos
   ```
 
 - `--retries`, `-r`: Number of retries for failed downloads (default: 3)
   ```bash
-  python youtube_downloader.py [CHANNEL_URL] --retries 5
+  python youtube_downloader.py [URL] --retries 5
   ```
 
 - `--no-geo-bypass`: Disable geo-restriction bypassing
   ```bash
-  python youtube_downloader.py [CHANNEL_URL] --no-geo-bypass
+  python youtube_downloader.py [URL] --no-geo-bypass
   ```
 
-- `--limit`, `-l`: Limit the number of videos to download (useful for testing)
+- `--limit`, `-l`: Limit the number of videos to download from a channel (useful for testing)
   ```bash
   python youtube_downloader.py [CHANNEL_URL] --limit 5
   ```
 
-- `--help`, `-h`: Display help message and exit
-  ```bash
-  python youtube_downloader.py --help
-  ```
+### Examples
 
-### Example with Multiple Options
+1. Download a single video:
+```bash
+python youtube_downloader.py https://www.youtube.com/watch?v=VIDEO_ID \
+  --output ./my_videos \
+  --retries 5
+```
 
+2. Download from a channel with multiple options:
 ```bash
 python youtube_downloader.py https://www.youtube.com/@SomeChannel \
   --output ./my_videos \
